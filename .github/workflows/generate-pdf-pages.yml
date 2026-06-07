@@ -1,0 +1,103 @@
+name: Générer les pages PDF
+
+on:
+  push:
+    branches:
+      - principal
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+
+      - name: Générer les pages HTML
+        run: |
+          python3 << 'EOF'
+          import os
+          import html
+
+          sections = {
+              "Seconde": "📘",
+              "Premiere": "📗",
+              "Terminale": "📙",
+              "BIA": "✈️",
+              "Classe_cinema": "🎬"
+          }
+
+          for folder, icon in sections.items():
+              os.makedirs(folder, exist_ok=True)
+
+              pdfs = sorted([
+                  f for f in os.listdir(folder)
+                  if f.lower().endswith(".pdf")
+              ])
+
+              cards = ""
+              for pdf in pdfs:
+                  title = os.path.splitext(pdf)[0].replace("_", " ").replace("-", " ")
+                  cards += f'''
+            <a class="card" href="{html.escape(pdf)}">
+              <div class="icon">📄</div>
+              <h2>{html.escape(title)}</h2>
+              <p>Ouvrir le PDF</p>
+            </a>
+          '''
+
+              if not pdfs:
+                  cards = "<p>Aucun document PDF pour le moment.</p>"
+
+              page_title = folder.replace("_", " ").replace("Premiere", "Première")
+
+              content = f'''<!DOCTYPE html>
+          <html lang="fr">
+          <head>
+            <meta charset="UTF-8">
+            <title>{page_title} - Le labo d'Ugo</title>
+            <link rel="stylesheet" href="../style.css">
+          </head>
+
+          <body>
+
+          <header>
+            <h1>{icon} {page_title}</h1>
+            <p>Documents pédagogiques au format PDF</p>
+          </header>
+
+          <nav>
+            <a href="../">Accueil</a>
+            <a href="../Seconde/">Seconde</a>
+            <a href="../Premiere/">Première</a>
+            <a href="../Terminale/">Terminale</a>
+            <a href="../BIA/">BIA</a>
+            <a href="../Classe_cinema/">Classe cinéma</a>
+          </nav>
+
+          <main class="grid">
+          {cards}
+          </main>
+
+          <footer>
+            <p>© Le labo d'Ugo</p>
+          </footer>
+
+          </body>
+          </html>'''
+
+              with open(os.path.join(folder, "index.html"), "w", encoding="utf-8") as f:
+                  f.write(content)
+          EOF
+
+      - name: Enregistrer les pages générées
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add .
+          git commit -m "Génération automatique des pages PDF" || echo "Aucun changement"
+          git push
